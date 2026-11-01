@@ -1,0 +1,293 @@
+<title>Twin Suns</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Bungee&display=swap">
+<style>
+  /* Colours here are defaults. ui.js overwrites the ones the theme defines (sky, sun, accents). */
+  :root {
+    --sky: #f2c48a;
+    --sand: #d9b77e;
+    --sun1: #fff1d6;
+    --sun2: #ffb36b;
+    --ink: #fff4de;
+    --ink-dim: #ecd3a3;
+    --panel: rgba(28, 18, 10, 0.68);
+    --panel-solid: #2a1b10;
+    --panel-edge: rgba(255, 226, 170, 0.24);
+    --accent: #ffb36b;
+    --accent-ink: #2a1608;
+    --hp: #ff5a4d;
+    --hp-bg: rgba(64, 20, 16, 0.78);
+    --xp: #5ff2ff;
+    --elite: #ffd24a;
+    --danger: #ff5a3c;
+    --display: "Bungee", "Impact", "Arial Black", sans-serif;
+    --ui: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--sky); }
+  body { font-family: var(--ui); color: var(--ink); -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+  button { font: inherit; color: inherit; }
+
+  #app { position: fixed; inset: 0; overflow: hidden; background: var(--sky); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  #stage { position: absolute; inset: 0; touch-action: none; }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+
+  /* Warm two-sun glow and edge haze over the 3D view. Pure decoration. */
+  #haze { position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(60% 38% at 0% 0%, color-mix(in srgb, var(--sun1) 34%, transparent), transparent 70%),
+      radial-gradient(52% 34% at 100% 4%, color-mix(in srgb, var(--sun2) 30%, transparent), transparent 70%),
+      radial-gradient(120% 90% at 50% 50%, transparent 58%, rgba(60, 28, 8, 0.28) 100%); }
+  #hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(90% 80% at 50% 50%, transparent 38%, rgba(255, 40, 24, 0.62) 100%); }
+
+  /* ---------- floating things ---------- */
+  #fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .dn { position: absolute; left: 0; top: 0; display: none; font: 700 20px/1 var(--ui); color: #fff; letter-spacing: 0.02em;
+    text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000, 0 0 6px rgba(0,0,0,.55);
+    will-change: transform, opacity; font-variant-numeric: tabular-nums; }
+  #pbar { position: absolute; left: 0; top: 0; width: 46px; height: 6px; border-radius: 3px; background: var(--hp-bg);
+    border: 1px solid rgba(0,0,0,.55); overflow: hidden; display: none; will-change: transform; }
+  #pbarfill { height: 100%; width: 100%; background: var(--hp); transform-origin: left center; }
+
+  #joy { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .12s; }
+  #joy.on { opacity: 1; }
+  #joyRing { position: absolute; left: 0; top: 0; width: 112px; height: 112px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.55); background: rgba(255,255,255,.12); box-shadow: 0 0 0 1px rgba(0,0,0,.25), inset 0 0 18px rgba(0,0,0,.18); will-change: transform; }
+  #joyKnob { position: absolute; left: 0; top: 0; width: 54px; height: 54px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, rgba(255,255,255,.62)); border: 2px solid rgba(0,0,0,.28);
+    box-shadow: 0 3px 10px rgba(0,0,0,.35); will-change: transform; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: absolute; inset: 0; pointer-events: none; display: none; flex-direction: column; gap: 6px;
+    padding: calc(var(--safe-t) + 8px) calc(var(--safe-r) + 12px) 0 calc(var(--safe-l) + 12px); }
+  #hud.on { display: flex; }
+  .panel { background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px; }   /* no backdrop-filter: it re-blurs every frame over the WebGL canvas and costs real FPS on phones */
+  #xprow { display: flex; align-items: center; gap: 8px; }
+  #lvl { min-width: 54px; height: 24px; padding: 0 10px; display: flex; align-items: center; justify-content: center;
+    font: 700 15px/1 var(--ui); letter-spacing: .08em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  #xpbar { flex: 1; height: 12px; border-radius: 6px; overflow: hidden; position: relative; }
+  #xpfill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0);
+    background: linear-gradient(90deg, var(--xp), #c9fbff); box-shadow: 0 0 8px var(--xp); }
+  #row2 { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 8px; }
+  #hp { position: relative; height: 26px; max-width: 200px; overflow: hidden; background: var(--hp-bg); }
+  #hpfill { position: absolute; inset: 0; transform-origin: left center; background: linear-gradient(90deg, #d8372b, var(--hp)); }
+  #hptext { position: relative; z-index: 1; display: flex; height: 100%; align-items: center; justify-content: center;
+    font: 700 16px/1 var(--ui); font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,.7); letter-spacing: .04em; }
+  #clock { text-align: center; padding: 2px 14px 3px; min-width: 96px; }
+  #time { font: 700 28px/1 var(--ui); font-variant-numeric: tabular-nums; letter-spacing: .04em; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  #killrow { font: 600 14px/1 var(--ui); color: var(--ink-dim); letter-spacing: .1em; text-transform: uppercase; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  #killrow b { color: var(--ink); font-weight: 700; font-size: 16px; }
+  #btns { justify-self: end; display: flex; gap: 8px; }
+  .ibtn { pointer-events: auto; width: 46px; height: 46px; padding: 0; display: grid; place-items: center; cursor: pointer; border-radius: 12px; }
+  .ibtn svg { width: 22px; height: 22px; fill: var(--ink); }
+  .ibtn:active { transform: scale(.94); }
+  #muteBtn .off { display: none; }
+  #muteBtn.muted .on { display: none; }
+  #muteBtn.muted .off { display: block; }
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+  .chip { width: 34px; padding: 3px 0 3px; text-align: center; border-radius: 8px; border-color: var(--c); border-color: color-mix(in srgb, var(--c) 70%, transparent); }
+  .chip .g { display: block; font: 400 16px/18px var(--display); color: var(--c); text-shadow: 0 1px 0 rgba(0,0,0,.6); }
+  .chip img { width: 20px; height: 20px; display: block; margin: 0 auto; }
+  .chip .p { display: flex; justify-content: center; gap: 2px; margin-top: 2px; }
+  .chip .p i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.22); }
+  .chip .p i.on { background: var(--c); }
+  .chip.passive { border-radius: 14px; }
+
+  #banner { position: absolute; left: 0; right: 0; top: 26%; text-align: center; pointer-events: none; opacity: 0; padding: 0 16px; }
+  #banner span { display: inline-block; font: 400 clamp(18px, 5.2vw, 32px)/1.15 var(--display); letter-spacing: .04em; text-transform: uppercase;
+    padding: 8px 18px; border-radius: 10px; background: var(--panel); border: 1px solid var(--panel-edge); color: var(--elite); text-shadow: 0 2px 0 rgba(0,0,0,.55); }
+  #banner.boss span { color: var(--danger); border-color: var(--danger); }
+  #banner.show { animation: bannerIn 2.4s ease-out forwards; }
+  @keyframes bannerIn { 0% { opacity: 0; transform: translateY(-12px) scale(.92); } 10% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; } }
+
+  #bossbar { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--safe-t) + 146px); width: min(320px, calc(100% - 40px)); display: none; pointer-events: none; text-align: center; }
+  #bossbar.on { display: block; }
+  #bossname { font: 700 14px/1 var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); text-shadow: 0 1px 3px #000; margin-bottom: 4px; }
+  #bossfill-wrap { height: 10px; border-radius: 5px; overflow: hidden; position: relative; background: var(--hp-bg); border: 1px solid var(--panel-edge); }
+  #bossfill { position: absolute; inset: 0; transform-origin: left center; background: linear-gradient(90deg, #b3261e, var(--danger)); }
+
+  #bossarrow { position: absolute; left: 0; top: 0; width: 34px; height: 34px; margin: -17px 0 0 -17px; display: none; pointer-events: none; will-change: transform; }
+  #bossarrow svg { width: 100%; height: 100%; fill: var(--danger); stroke: rgba(0,0,0,.65); stroke-width: 1.5; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+
+  /* ---------- overlays ---------- */
+  .overlay { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center;
+    padding: calc(var(--safe-t) + 18px) calc(var(--safe-r) + 18px) calc(var(--safe-b) + 18px) calc(var(--safe-l) + 18px); overflow-y: auto; }
+  .overlay.on { display: flex; }
+  #title { background: linear-gradient(to bottom, rgba(46, 24, 8, .5), rgba(46, 24, 8, .18) 40%, rgba(46, 24, 8, .5)); }
+  #levelup, #pause, #end { background: radial-gradient(120% 90% at 50% 40%, rgba(30, 16, 6, .62), rgba(20, 10, 4, .86)); }
+  .suns { display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .suns i { display: block; border-radius: 50%; }
+  .suns i:nth-child(1) { width: 46px; height: 46px; background: radial-gradient(circle at 40% 38%, #fffbe9, var(--sun1) 55%, color-mix(in srgb, var(--sun1) 70%, #fff)); box-shadow: 0 0 30px 6px color-mix(in srgb, var(--sun1) 55%, transparent); }
+  .suns i:nth-child(2) { width: 30px; height: 30px; margin-left: -8px; margin-top: 18px; background: radial-gradient(circle at 40% 38%, #ffe0b8, var(--sun2)); box-shadow: 0 0 26px 5px color-mix(in srgb, var(--sun2) 60%, transparent); }
+  h1.big { margin: 0; font: 400 clamp(40px, 13vw, 92px)/.95 var(--display); letter-spacing: .02em; color: var(--ink);
+    text-shadow: 0 3px 0 #7a3b12, 0 6px 0 rgba(0,0,0,.38), 0 0 30px color-mix(in srgb, var(--sun2) 60%, transparent); }
+  h2.mid { margin: 0; font: 400 clamp(26px, 8vw, 46px)/1.05 var(--display); letter-spacing: .03em; text-shadow: 0 3px 0 rgba(0,0,0,.45); }
+  .tag { margin: 0; font: 600 clamp(17px, 4.6vw, 22px)/1.25 var(--ui); color: var(--ink); letter-spacing: .04em; text-shadow: 0 1px 3px rgba(0,0,0,.65); max-width: 30ch; }
+  .hint { margin: 0; font: 500 clamp(15px, 4vw, 18px)/1.3 var(--ui); color: var(--ink-dim); max-width: 34ch; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+  .credit { margin: 0; font: 500 13px/1.3 var(--ui); color: var(--ink-dim); opacity: .8; max-width: 38ch; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+  .btn { pointer-events: auto; cursor: pointer; min-width: 190px; min-height: 58px; padding: 10px 30px; border-radius: 16px; border: 2px solid rgba(255,255,255,.35);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--accent) 100%, #fff 14%), var(--accent)); color: var(--accent-ink);
+    font: 400 clamp(20px, 5.6vw, 26px)/1 var(--display); letter-spacing: .05em; text-transform: uppercase; box-shadow: 0 5px 0 rgba(0,0,0,.32), 0 10px 24px rgba(0,0,0,.3); }
+  .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.32); }
+  .btn.ghost { background: var(--panel); color: var(--ink); border-color: var(--panel-edge); min-height: 50px; font-size: 18px; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn:focus-visible, .card:focus-visible, .ibtn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+  .lu-title { font: 400 clamp(28px, 8.5vw, 50px)/1 var(--display); letter-spacing: .04em; color: var(--accent); text-shadow: 0 3px 0 rgba(0,0,0,.5), 0 0 24px color-mix(in srgb, var(--accent) 50%, transparent); text-transform: uppercase; }
+  .lu-sub { font: 600 16px/1.2 var(--ui); color: var(--ink-dim); letter-spacing: .16em; text-transform: uppercase; margin-top: 6px; }
+  #cards { display: flex; flex-direction: column; gap: 10px; width: min(520px, 100%); }
+  .card { pointer-events: auto; cursor: pointer; position: relative; display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: center; text-align: left;
+    min-height: 88px; padding: 12px 16px 12px 12px; border-radius: 16px; border: 2px solid var(--c);
+    background: var(--panel-solid); background: linear-gradient(135deg, color-mix(in srgb, var(--c) 16%, var(--panel-solid)), var(--panel-solid)); box-shadow: 0 6px 18px rgba(0,0,0,.4); transition: transform .08s, opacity .2s; }
+  .card:active { transform: scale(.975); }
+  .card.lock { opacity: .55; pointer-events: none; }
+  .card .glyph { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; background: rgba(0,0,0,.4); background: color-mix(in srgb, var(--c) 28%, #000); border: 2px solid var(--c);
+    font: 400 28px/1 var(--display); color: var(--c); text-shadow: 0 2px 0 rgba(0,0,0,.5); }
+  .card .glyph img { width: 38px; height: 38px; }
+  .card .body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .card .name { font: 700 22px/1.05 var(--ui); letter-spacing: .03em; text-transform: uppercase; }
+  .card .lv { font: 600 15px/1 var(--ui); color: var(--c); letter-spacing: .08em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+  .card .desc { font: 500 17px/1.2 var(--ui); color: var(--ink-dim); }
+  .card .new { position: absolute; top: -9px; right: 12px; padding: 3px 9px; border-radius: 6px; background: var(--c); color: #1b1006; font: 700 13px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+  .card .key { position: absolute; right: 12px; bottom: 8px; display: none; font: 700 13px/1 var(--ui); color: var(--ink-dim); opacity: .8; }
+  @media (hover: hover) and (pointer: fine) { .card .key { display: block; } }
+  @media (orientation: landscape) and (min-width: 640px) {
+    #cards { flex-direction: row; width: min(960px, 100%); }
+    .card { flex: 1; grid-template-columns: 1fr; text-align: center; justify-items: center; min-height: 150px; padding: 18px 12px 24px; }
+    .card .body { align-items: center; }
+    .card .key { right: auto; left: 50%; transform: translateX(-50%); bottom: 6px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .overlay { gap: 8px; }
+    h1.big { font-size: clamp(34px, 9vh, 60px); }
+    .suns i:nth-child(1) { width: 30px; height: 30px; } .suns i:nth-child(2) { width: 20px; height: 20px; margin-top: 12px; }
+    .card { min-height: 112px; padding: 12px 10px 20px; }
+    .card .glyph { width: 44px; height: 44px; font-size: 22px; }
+    .lu-title { font-size: 28px; }
+    #chips { position: absolute; left: calc(var(--safe-l) + 12px); top: calc(var(--safe-t) + 100px); flex-direction: column; flex-wrap: nowrap; }
+    #bossbar { top: calc(var(--safe-t) + 78px); }
+    #banner { top: 22%; }
+  }
+  #stats { display: grid; grid-template-columns: auto auto; gap: 6px 22px; margin: 4px 0; font-variant-numeric: tabular-nums; }
+  #stats dt { font: 600 17px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); text-align: right; align-self: center; }
+  #stats dd { margin: 0; font: 700 34px/1 var(--ui); text-align: left; }
+  #end.victory h2.mid { color: var(--elite); }
+  #end.gameover h2.mid { color: var(--danger); }
+
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--sky); font: 400 22px var(--display); color: #5a3416; letter-spacing: .08em; z-index: 5; }
+  #fatal { position: absolute; inset: 0; z-index: 99; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(30, 10, 6, .94); color: #ffe3d8; }
+  #fatal.on { display: flex; }
+  #fatal div { max-width: 560px; font: 500 16px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  #fatal h3 { margin: 0 0 10px; font: 700 22px var(--ui); color: #ff9a85; letter-spacing: .04em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #banner.show { animation: bannerFade 2.4s linear forwards; }
+    @keyframes bannerFade { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+    .card, .btn { transition: none; }
+  }
+</style>
+
+<div id="app">
+  <div id="stage"><canvas id="c" tabindex="-1"></canvas></div>
+  <div id="haze"></div>
+  <div id="hurt"></div>
+  <div id="fx"><div id="pbar"><div id="pbarfill"></div></div></div>
+  <div id="joy"><div id="joyRing"></div><div id="joyKnob"></div></div>
+
+  <div id="hud">
+    <div id="xprow">
+      <div id="lvl" class="panel">LV 1</div>
+      <div id="xpbar" class="panel"><div id="xpfill"></div></div>
+    </div>
+    <div id="row2">
+      <div id="hp" class="panel"><div id="hpfill"></div><div id="hptext">100 / 100</div></div>
+      <div id="clock" class="panel"><div id="time">00:00</div><div id="killrow"><span id="killlabel">Kills</span> <b id="kills">0</b></div></div>
+      <div id="btns">
+        <button id="muteBtn" class="ibtn panel" aria-label="Mute">
+          <svg viewBox="0 0 24 24" class="on"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>
+          <svg viewBox="0 0 24 24" class="off"><path d="M3 9v6h4l5 4V5L7 9H3zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/></svg>
+        </button>
+        <button id="pauseBtn" class="ibtn panel" aria-label="Pause">
+          <svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="chips"></div>
+  </div>
+
+  <div id="bossarrow"><svg viewBox="0 0 24 24"><path d="M12 2 22 20 12 15 2 20z"/></svg></div>
+  <div id="bossbar"><div id="bossname"></div><div id="bossfill-wrap"><div id="bossfill"></div></div></div>
+  <div id="banner"><span id="bannertext"></span></div>
+
+  <div id="title" class="overlay">
+    <div class="suns"><i></i><i></i></div>
+    <h1 class="big" id="titletext">Twin Suns</h1>
+    <p class="tag" id="tagline"></p>
+    <button id="startBtn" class="btn">Start</button>
+    <p class="hint" id="controls"></p>
+    <p class="credit" id="credit"></p>
+  </div>
+
+  <div id="levelup" class="overlay">
+    <div><div class="lu-title" id="lutitle">Level up</div><div class="lu-sub" id="lusub">Choose one</div></div>
+    <div id="cards"></div>
+  </div>
+
+  <div id="pause" class="overlay">
+    <h2 class="mid" id="pausetitle">Paused</h2>
+    <div class="btnrow"><button id="resumeBtn" class="btn">Resume</button><button id="pauseRestartBtn" class="btn ghost">Restart</button></div>
+  </div>
+
+  <div id="end" class="overlay">
+    <h2 class="mid" id="endtitle"></h2>
+    <dl id="stats"><dt id="stTimeL"></dt><dd id="stTime"></dd><dt id="stKillsL"></dt><dd id="stKills"></dd><dt id="stLevelL"></dt><dd id="stLevel"></dd></dl>
+    <button id="restartBtn" class="btn">Restart</button>
+  </div>
+
+  <div id="loading">Loading…</div>
+  <div id="fatal"><div><h3>The game hit a problem</h3><span id="fatalmsg"></span></div></div>
+</div>
+
+<noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#2a1b10;color:#fff4de;font:20px sans-serif;padding:24px;text-align:center">This game needs JavaScript to run.</div></noscript>
+
+<script>
+  // Visible error panel: a blank screen should never be silent.
+  (function () {
+    window.__showFatal = function (msg) {
+      try {
+        var p = document.getElementById('fatal'), m = document.getElementById('fatalmsg'), l = document.getElementById('loading');
+        if (l) l.style.display = 'none';
+        if (m) m.textContent = String(msg);
+        if (p) p.className = 'on';
+      } catch (e) {}
+    };
+    window.addEventListener('error', function (e) {
+      var where = e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '';
+      window.__showFatal((e.message || 'Script error') + where);
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e.reason;
+      window.__showFatal('Unhandled error: ' + (r && r.message ? r.message : r));
+    });
+    setTimeout(function () {
+      // Not fatal: a slow connection or big model files can legitimately take longer (model loads time out at 20 s).
+      // Real failures (script / import errors) are reported by the handlers above.
+      var l = document.getElementById('loading');
+      if (!window.__game && l) l.textContent = 'Still loading… (slow connection or large model files)';
+    }, 15000);
+  })();
+</script>
+
+<script type="importmap">{"imports":{
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}</script>
+<script type="module" src="game/main.js" onerror="window.__showFatal('Could not load game/main.js (or one of its imports, such as three.js from the CDN).')"></script>

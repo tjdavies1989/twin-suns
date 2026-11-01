@@ -1,0 +1,7 @@
+{
+  "name": "twin-suns-tests",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "devDependencies": { "three": "0.160.0" }
+}
